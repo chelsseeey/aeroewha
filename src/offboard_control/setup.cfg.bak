@@ -1,0 +1,30 @@
+[metadata]
+name = offboard_control
+version = 0.0.0
+
+[options]
+packages = find:
+install_requires = setuptools
+zip_safe = false
+include_package_data = true
+package_dir =
+    = .
+
+[options.packages.find]
+where = .
+
+[options.entry_points]
+console_scripts =
+    offboard_node = offboard_control.offboard_node:main
+
+# ament_python 패키지 등록에 필수: resource와 package.xml을 설치
+[options.data_files]
+share/ament_index/resource_index/packages =
+    resource/offboard_control
+share/offboard_control =
+    package.xml
+
+[develop]
+script_dir=$base/lib/offboard_control
+[install]
+install_scripts=$base/lib/offboard_control
