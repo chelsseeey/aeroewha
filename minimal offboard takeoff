@@ -1,0 +1,50 @@
+# offboard_takeoff.py
+import rclpy, time
+from rclpy.node import Node
+from geometry_msgs.msg import PoseStamped
+from mavros_msgs.srv import CommandBool, SetMode
+
+class Offboard(Node):
+    def __init__(self):
+        super().__init__('offboard_example')
+        self.pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', 10)
+        self.arm_cli = self.create_client(CommandBool, '/mavros/cmd/arming')
+        self.mode_cli = self.create_client(SetMode, '/mavros/set_mode')
+        self.timer = self.create_timer(0.05, self.publish_target)  # 20 Hz
+        self.msg = PoseStamped()
+        self.msg.pose.position.x = 0.0
+        self.msg.pose.position.y = 0.0
+        self.msg.pose.position.z = 2.0
+
+    def publish_target(self):
+        self.msg.header.stamp = self.get_clock().now().to_msg()
+        self.pub.publish(self.msg)
+
+def main():
+    rclpy.init()
+    node = Offboard()
+
+    # Pre-stream a few setpoints before OFFBOARD (PX4 requirement)
+    for _ in range(100):
+        node.publish_target()
+        time.sleep(0.05)
+
+    # Set mode OFFBOARD
+    while not node.mode_cli.wait_for_service(timeout_sec=1.0):
+        pass
+    set_mode = SetMode.Request()
+    set_mode.custom_mode = 'OFFBOARD'
+    node.mode_cli.call_async(set_mode)
+
+    # Arm
+    while not node.arm_cli.wait_for_service(timeout_sec=1.0):
+        pass
+    arm = CommandBool.Request()
+    arm.value = True
+    node.arm_cli.call_async(arm)
+
+    rclpy.spin(node)
+
+if __name__ == '__main__':
+    main()
+
