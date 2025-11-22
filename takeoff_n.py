@@ -1,100 +1,177 @@
-import rospy
-from geometry_msgs.msg import Twist
-from sensor_msgs.msg import Imu
-from sensor_msgs.msg import NavSatFix
-import time
-import math
+#include <px4_platform_common/module.h>
+#include <px4_platform_common/log.h>
+#include <px4_platform_common/px4_config.h>
+#include <px4_platform_common/tasks.h>
+#include <px4_platform_common/time.h>
 
-class QuadController:
-    def __init__(self):
-        rospy.init_node('quad_controller', anonymous=True)
+#include <lib/module_params/module_params.h>
+#include <parameters/param.h>
 
-        # 퍼블리셔: 쿼드콥터 비행 제어 명령을 쿼드콥터에 전달
-        self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+#include <uORB/Subscription.hpp>
+#include <uORB/Publication.hpp>
+#include <uORB/topics/actuator_motors.h>
+#include <uORB/topics/actuator_outputs.h>
 
-        # 서브스크라이버: IMU 데이터, GPS 데이터
-        rospy.Subscriber('/imu/data', Imu, self.imu_callback)
-        rospy.Subscriber('/gps/fix', NavSatFix, self.gps_callback)
+using namespace time_literals;
 
-        self.cmd_vel = Twist()
+class MotorGainPostMixer : public ModuleBase<MotorGainPostMixer>, public ModuleParams
+{
+public:
+    MotorGainPostMixer() :
+        ModuleParams(nullptr),
+        _sub_motors(ORB_ID(actuator_motors)),
+        _pub_outputs(ORB_ID(actuator_outputs))
+    {
+    }
 
-        # 초기 설정 (예: 비행 고도, 무게중심 오프셋 등)
-        self.target_altitude = 5.0  # 목표 고도 (5미터)
-        self.current_altitude = 0.0
-        self.roll_offset = 0.0  # 무게중심 오프셋: 롤 각도
-        self.pitch_offset = 0.0  # 피치 각도
-        self.thrust_offset = 1.0  # 기본 추력 배수
+    ~MotorGainPostMixer() override {}
 
-    def imu_callback(self, msg):
-        # IMU 데이터를 받아서 처리
-        self.roll = msg.orientation.x
-        self.pitch = msg.orientation.y
-        self.yaw = msg.orientation.z
-        rospy.loginfo(f"IMU Data - Roll: {self.roll}, Pitch: {self.pitch}, Yaw: {self.yaw}")
+    static int task_spawn(int argc, char *argv[])
+    {
+        MotorGainPostMixer *instance = new MotorGainPostMixer();
+        if (!instance) {
+            PX4_ERR("alloc failed");
+            return PX4_ERROR;
+        }
 
-        # 무게중심 변화에 따른 롤 및 피치 오프셋 조정
-        self.roll_offset = self.roll * 0.2  # 예시: 롤 변화에 따른 오프셋 조정
-        self.pitch_offset = self.pitch * 0.2  # 예시: 피치 변화에 따른 오프셋 조정
+        _object.store(instance);
 
-    def gps_callback(self, msg):
-        # GPS 데이터를 받아서 고도 정보 처리
-        self.latitude = msg.latitude
-        self.longitude = msg.longitude
-        self.current_altitude = msg.altitude
-        rospy.loginfo(f"GPS Data - Latitude: {self.latitude}, Longitude: {self.longitude}, Altitude: {self.current_altitude}")
+        _task_id = px4_task_spawn_cmd("motor_gain_post_mixer",
+                                      SCHED_DEFAULT,
+                                      SCHED_PRIORITY_DEFAULT,
+                                      1700,
+                                      (px4_main_t)&MotorGainPostMixer::task_trampoline,
+                                      nullptr);
 
-    def calculate_thrust(self):
-        """
-        모터에 필요한 추력을 계산합니다.
-        - 목표 고도에 맞춰서 상승하도록 조정합니다.
-        - 무게중심 변화에 따른 롤 및 피치 오프셋을 보정합니다.
-        """
-        # 목표 고도로 상승을 위한 기본 추력
-        thrust = self.thrust_offset
+        if (_task_id < 0) {
+            PX4_ERR("task spawn failed");
+            delete instance;
+            return PX4_ERROR;
+        }
 
-        # 목표 고도에 따른 상승 비율을 계산
-        altitude_error = self.target_altitude - self.current_altitude
-        thrust += altitude_error * 0.5  # 목표 고도까지 비례하여 상승
+        return PX4_OK;
+    }
 
-        # 무게중심 보정 (롤 및 피치 오프셋)
-        if abs(self.roll_offset) > 0.05:  # 일정 기준 이상의 롤 오프셋이 있을 때
-            thrust += self.roll_offset * 0.5  # 롤 오프셋에 따른 추력 조정
+    static MotorGainPostMixer *instantiate(int argc, char *argv[]) { return new MotorGainPostMixer(); }
+    static int custom_command(int argc, char *argv[]) { return print_usage("Unknown command"); }
+    static int print_usage(const char *reason);
 
-        if abs(self.pitch_offset) > 0.05:  # 일정 기준 이상의 피치 오프셋이 있을 때
-            thrust += self.pitch_offset * 0.5  # 피치 오프셋에 따른 추력 조정
+    void run() override;
 
-        # 상승/하강 상태에 맞춰 Z 방향 속도 수정
-        self.cmd_vel.linear.z = max(min(thrust, 1.0), 0.0)  # 추력 값을 0에서 1로 제한
+private:
 
-    def control_loop(self):
-        """
-        비행 제어 루프: 이륙 시 추력 및 자세를 제어합니다.
-        """
-        self.calculate_thrust()
-        rospy.loginfo(f"Sending thrust command: {self.cmd_vel.linear.z}")
-        
-        # 이륙 명령 전송
-        self.pub_cmd_vel.publish(self.cmd_vel)
+    DEFINE_PARAMETERS(
+        (ParamInt<px4::params::MGC_EN>) _enabled,
+        (ParamFloat<px4::params::MGC_G1>) _g1,
+        (ParamFloat<px4::params::MGC_G2>) _g2,
+        (ParamFloat<px4::params::MGC_G3>) _g3,
+        (ParamFloat<px4::params::MGC_G4>) _g4
+    );
 
-    def land(self):
-        """
-        착륙 명령
-        """
-        self.cmd_vel.linear.z = 0.0  # 착륙을 위한 추력 0 설정
-        rospy.loginfo("Sending landing command")
-        self.pub_cmd_vel.publish(self.cmd_vel)
+    uORB::Subscription _sub_motors;
+    uORB::Publication<actuator_outputs_s> _pub_outputs;
 
-if __name__ == '__main__':
-    controller = QuadController()
-    try:
-        while not rospy.is_shutdown():
-            controller.control_loop()
-            rospy.sleep(1)  # 루프 속도 제어 (1초마다 제어)
+    static MotorGainPostMixer *_object;
+    static int _task_id;
+};
 
-            # 목표 고도에 도달하면 착륙
-            if controller.current_altitude >= controller.target_altitude:
-                controller.land()
-                break
+MotorGainPostMixer *MotorGainPostMixer::_object = nullptr;
+int MotorGainPostMixer::_task_id = -1;
 
-    except rospy.ROSInterruptException:
-        pass
+void MotorGainPostMixer::run()
+{
+    PX4_INFO("motor_gain_post_mixer started");
+
+    actuator_motors_s motors{};
+    actuator_outputs_s outputs{};
+
+    // safety: initialize outputs to zero
+    outputs.noutputs = 0;
+    for (unsigned i = 0; i < sizeof(outputs.output)/sizeof(outputs.output[0]); i++) {
+        outputs.output[i] = 0.0f;
+    }
+
+    // loop rate ~ 250-400 Hz depending on source; we'll poll with timeout
+    const int wait_ms = 4; // ~250 Hz
+
+    while (!should_exit()) {
+
+        // if module disabled, just sleep and continue
+        if (!_enabled.get()) {
+            px4_usleep(wait_ms * 1000);
+            // optionally we could still swallow the topic to keep it fresh
+            (void)_sub_motors.update(&motors);
+            continue;
+        }
+
+        // wait for actuator_motors update
+        if (_sub_motors.updated()) {
+            if (_sub_motors.copy(&motors) != PX4_OK) {
+                px4_usleep(wait_ms * 1000);
+                continue;
+            }
+
+            // Prepare outputs structure based on motors
+            outputs.timestamp = hrt_absolute_time();
+
+            // motors.noutputs indicates number of motor channels produced by mixer
+            unsigned n = motors.noutputs;
+            if (n > sizeof(outputs.output)/sizeof(outputs.output[0])) {
+                // clamp for safety
+                n = sizeof(outputs.output)/sizeof(outputs.output[0]);
+            }
+
+            outputs.noutputs = n;
+
+            // Gains from params (default 1.0)
+            float gains[4] = { _g1.get(), _g2.get(), _g3.get(), _g4.get() };
+
+            // Apply per-motor gains for available channels.
+            // motors.control[] holds the post-mixer normalized outputs (0..1 or -1..1 depending on reversible flags).
+            for (unsigned i = 0; i < n; ++i) {
+                float base = motors.control[i];
+
+                // if we only specified 4 gains but more channels exist, apply 1.0 for extra channels
+                float g = (i < 4) ? gains[i] : 1.0f;
+
+                // apply gain
+                float scaled = base * g;
+
+                // safety clamp to reasonable range: [-1.0, 1.0] (actuator_outputs expects normalized outputs)
+                if (scaled > 1.0f) scaled = 1.0f;
+                if (scaled < -1.0f) scaled = -1.0f;
+
+                outputs.output[i] = scaled;
+            }
+
+            // publish actuator_outputs (this will be used by IO/PWM driver)
+            if (!_pub_outputs.advertised()) {
+                _pub_outputs.advertise(outputs);
+            } else {
+                _pub_outputs.publish(outputs);
+            }
+        }
+
+        px4_usleep(wait_ms * 1000);
+    }
+
+    PX4_INFO("motor_gain_post_mixer exiting");
+}
+
+int MotorGainPostMixer::print_usage(const char *reason)
+{
+    if (reason) {
+        PX4_WARN("%s", reason);
+    }
+
+    PRINT_MODULE_USAGE_NAME("motor_gain_post_mixer", "module");
+    PRINT_MODULE_USAGE_COMMAND("start");
+    PRINT_MODULE_USAGE_PARAM_INT('h', 0, 0, "unused", true);
+    PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
+    return 0;
+}
+
+extern "C" __EXPORT int motor_gain_post_mixer_main(int argc, char *argv[])
+{
+    return MotorGainPostMixer::main(argc, argv);
+}
