@@ -4,7 +4,7 @@ Servo myServo;
 
 int speedValue = 120;     // 속도 (90=정지, 120~150 = 방향/속도)
 int turnCount = 5;        // 
-int oneTurnTime = 1850;    // 1850-정확히 5바퀴
+int oneTurnTime = 3500;    // 1850-정확히 5바퀴
 
 void setup() {
   myServo.attach(9);
