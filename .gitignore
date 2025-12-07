@@ -51,8 +51,3 @@ Thumbs.db
 
 # Config (if contains secrets)
 # configs/*.yaml
-
-# Training dataset (too large for git)
-training/dataset/train/
-training/dataset/valid/
-training/dataset/test/
