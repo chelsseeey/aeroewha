@@ -1,0 +1,43 @@
+# Control Configuration
+# P/PID Controller Settings, Speed/Acceleration Limits, Altitude Limits
+
+controller:
+  type: "PID"  # P, PI, or PID
+  
+  # Position Controller (X, Y, Z axes)
+  position:
+    p_gain: 0.5
+    i_gain: 0.01
+    d_gain: 0.1
+    
+  # Velocity Controller
+  velocity:
+    p_gain: 0.3
+    i_gain: 0.05
+    d_gain: 0.05
+    
+  # Yaw Controller
+  yaw:
+    p_gain: 1.0
+    i_gain: 0.0
+    d_gain: 0.2
+
+# Speed and Acceleration Limits
+limits:
+  max_horizontal_speed: 5.0  # m/s
+  max_vertical_speed: 2.0    # m/s
+  max_acceleration: 2.0      # m/s^2
+  max_yaw_rate: 45.0         # degrees/s
+  
+  # Altitude Constraints
+  min_altitude: 1.0          # m
+  max_altitude: 30.0         # m
+  
+  # Safety Margins
+  position_tolerance: 0.5    # m
+  velocity_tolerance: 0.2    # m/s
+
+# Control Loop Settings
+control_loop:
+  frequency: 20  # Hz
+  timeout: 1.0   # seconds

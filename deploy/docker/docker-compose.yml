@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  drone:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    container_name: drone_control
+    volumes:
+      - ../../configs:/app/configs
+      - ../../logs:/app/logs
+    devices:
+      - /dev/video0:/dev/video0  # Camera access
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - DISPLAY=${DISPLAY}
+    privileged: true

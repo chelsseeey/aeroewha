@@ -1,0 +1,56 @@
+# System Configuration
+# SITL/REAL Mode, Connection Address, Mission Parameters
+
+system:
+  # Operating Mode
+  mode: "SITL"  # SITL or REAL
+  
+  # MAVSDK Connection
+  connection:
+    sitl_address: "udp://:14540"
+    real_address: "serial:///dev/ttyACM0:57600"
+    timeout: 30  # connection timeout in seconds
+    
+  # System Info
+  system_id: 1
+  component_id: 1
+
+# Mission Parameters
+mission:
+  default_altitude: 10.0       # m
+  takeoff_altitude: 5.0        # m
+  landing_speed: 0.5           # m/s
+  
+  search:
+    pattern_type: "spiral"     # spiral, lawnmower, etc.
+    search_radius: 20.0        # m
+    search_speed: 2.0          # m/s
+    scan_overlap: 0.3          # 0~1
+  
+  tracking:
+    follow_distance: 5.0       # m 
+    follow_height: 3.0         # m
+    max_track_time: 300        # seconds
+    lost_timeout: 5.0          # seconds
+
+  rtl:
+    altitude: 15.0             # m
+    speed: 3.0                 # m/s
+
+# Safety Configuration
+safety:
+  enable_geofence: true
+  geofence_radius: 100.0    # m
+  enable_battery_check: true
+  min_battery_percent: 20.0
+  enable_rc_loss_check: true
+  rc_loss_timeout: 3.0      # seconds
+  
+# Logging
+logging:
+  enable: true
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  save_video: false
+  save_telemetry: true
+  log_interval: 0.1  # seconds
+  log_dir: "logs/runs"

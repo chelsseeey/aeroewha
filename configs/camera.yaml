@@ -1,0 +1,61 @@
+# Camera Configuration
+# Camera ID, Resolution, FOV, Calibration Parameters
+
+camera:
+  # Camera Source
+  source_type: "USB"  # USB, CSI, FILE, RTSP
+  device_id: 0        # for USB/CSI camera
+  video_path: ""      # for FILE source
+  rtsp_url: ""        # for RTSP stream
+  
+  # Resolution Settings
+  resolution:
+    width: 1280
+    height: 720
+    fps: 30
+
+  # Field of View (degrees)
+  fov:
+    horizontal: 78.0
+    vertical: 55.0
+
+  # Camera Calibration Parameters
+  calibration:
+    fx: 700.0
+    fy: 700.0
+    cx: 640.0
+    cy: 360.0
+    distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+  
+  # Camera Mount Configuration
+  mount:
+    pitch_angle: -15.0  # degrees (negative = downward)
+    roll_angle: 0.0     # degrees
+    yaw_offset: 0.0     # degrees
+    height_offset: 0.1  # m (camera position relative to drone center)
+
+# Image Processing
+processing:
+  flip_horizontal: false
+  flip_vertical: false
+  rotation: 0  # 0, 90, 180, 270
+  auto_exposure: true
+  auto_white_balance: true
+
+# Object Detection Settings
+detection:
+  method: "yolo"  # yolo or color
+  
+  # YOLO Settings
+  yolo:
+    model_path: "models/best.pt"  # Path to trained model
+    conf_threshold: 0.5            # Confidence threshold (0.0-1.0)
+    iou_threshold: 0.45            # IoU threshold for NMS
+    max_detections: 10             # Maximum detections per frame
+  
+  # Color Detection Settings (alternative)
+  color:
+    hsv_ranges:
+      - [[0, 100, 100], [10, 255, 255]]    # Red range 1
+      - [[170, 100, 100], [180, 255, 255]]  # Red range 2
+    min_area: 500  # Minimum contour area (pixels)

@@ -1,0 +1,21 @@
+[Unit]
+Description=Drone Control System
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/drone_project
+ExecStart=/home/ubuntu/drone_project/venv/bin/python3 /home/ubuntu/drone_project/main.py
+Restart=on-failure
+RestartSec=10
+
+# Environment variables
+Environment="PYTHONUNBUFFERED=1"
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

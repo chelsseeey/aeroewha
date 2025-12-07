@@ -1,0 +1,13 @@
+# YOLO Dataset Configuration
+
+# 데이터셋 경로 
+path: dataset
+train: images/train
+val: images/val
+
+# 클래스 정의 - 실제 검출할 물체에 맞게 수정
+names:
+  0: target  # 예: 빨간 공, 사람, 차량 등
+
+# 클래스 개수
+nc: 1
