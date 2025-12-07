@@ -64,9 +64,6 @@ drone_project/
 ### 1. 환경 설정
 
 ```bash
-# 저장소 이동
-cd /Users/chelsey/Desktop/project/AeroEwha/drone_project
-
 # 의존성 설치
 pip install -r requirements.txt
 
